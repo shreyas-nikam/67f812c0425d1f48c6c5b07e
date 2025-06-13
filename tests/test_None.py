@@ -1,126 +1,93 @@
 
-import unittest
 import numpy as np
-import math
-import statistics
-
-def generate_covariance_data(n: int = 5, seed: int = 2):
-    """Generates synthetic covariance data.
-
-    Args:
-        n: The number of assets.
-        seed: The random seed for reproducibility.
-
-    Returns:
-        A tuple containing the mean returns (mu) and the nominal covariance matrix (Sigma_nom).
-    """
-    np.random.seed(seed)
-    mu = np.abs(np.random.randn(n, 1)) / 15
-    Sigma = np.random.uniform(-0.15, 0.8, size=(n, n))
-    Sigma_nom = Sigma.T.dot(Sigma)
-    return mu, Sigma_nom
-
-
-def solve_portfolio_optimization(mu: np.ndarray, Sigma_nom: np.ndarray):
-    """Solves the portfolio optimization problem (simplified).
-
-    Args:
-        mu: The mean returns.
-        Sigma_nom: The nominal covariance matrix.
-
-    Returns:
-        The optimal portfolio weights (w). Returns equal weights for simplicity.
-    """
-    n = mu.shape[0]
-    w = np.ones(n) / n  # Assign equal weights to each asset
-    return w
-
-def calculate_worst_case_risk(w: np.ndarray, Sigma_nom: np.ndarray, delta: float = 0.2):
-    """Calculates the worst-case portfolio risk given covariance uncertainty (simplified).
-
-    Args:
-        w: The portfolio weights.
-        Sigma_nom: The nominal covariance matrix.
-        delta: The uncertainty parameter.
-
-    Returns:
-        A tuple containing the worst-case standard deviation and the corresponding Delta matrix.
-    """
-    n = Sigma_nom.shape[0]
-    Delta = np.random.uniform(-delta, delta, size=(n, n))
-    Sigma_worst = Sigma_nom + Delta
-    risk = w.T @ Sigma_worst @ w
-    worst_case_std_dev = np.sqrt(risk)
-    return worst_case_std_dev, Delta
-
-
-def calculate_risk_distribution(w: np.ndarray, Sigma_nom: np.ndarray, delta: float = 0.2, num_samples: int = 100):
-    """Calculates the distribution of portfolio risk under covariance uncertainty.
-
-    Args:
-        w: The portfolio weights.
-        Sigma_nom: The nominal covariance matrix.
-        delta: The uncertainty parameter.
-        num_samples: The number of samples to generate.
-
-    Returns:
-        A list of portfolio risk values.
-    """
-    n = Sigma_nom.shape[0]
-    risks = []
-    for _ in range(num_samples):
-        Delta_sample = np.random.uniform(-delta, delta, size=(n, n))
-        Delta_sample = np.triu(Delta_sample)
-        Delta_sample = Delta_sample + Delta_sample.T - np.diag(np.diag(Delta_sample))
-        Sigma_sample = Sigma_nom + Delta_sample
-        try:
-            w_val = w.reshape(-1, 1)
-            risk_sample = w_val.T @ Sigma_sample @ w_val
-            risks.append(risk_sample[0][0])  # Extract the scalar value
-        except Exception as e:
-            pass
-    return risks
+import unittest
 
 class TestPortfolioFunctions(unittest.TestCase):
 
-    def test_generate_covariance_data(self):
-        mu, Sigma_nom = generate_covariance_data(n=5)
-        self.assertEqual(mu.shape, (5, 1))
-        self.assertEqual(Sigma_nom.shape, (5, 5))
+    def test_generate_nominal_covariance_matrix(self):
+        # Test case 1: Valid input
+        n = 5
+        sigma_nom = generate_nominal_covariance_matrix(n)
+        self.assertEqual(sigma_nom.shape, (n, n))
 
-    def test_solve_portfolio_optimization(self):
-        mu, Sigma_nom = generate_covariance_data(n=5)
-        w = solve_portfolio_optimization(mu, Sigma_nom)
-        self.assertIsInstance(w, np.ndarray)
-        self.assertEqual(len(w), 5)
+        # Test case 2: Invalid input (n <= 0)
+        with self.assertRaises(ValueError):
+            generate_nominal_covariance_matrix(0)
 
-    def test_calculate_worst_case_risk(self):
-        mu, Sigma_nom = generate_covariance_data(n=5)
-        w = solve_portfolio_optimization(mu, Sigma_nom)
-        worst_case_std_dev, _ = calculate_worst_case_risk(w, Sigma_nom)
-        self.assertGreaterEqual(worst_case_std_dev, 0)
+        # Test case 3: Invalid input (n not an integer)
+        with self.assertRaises(ValueError):
+            generate_nominal_covariance_matrix(1.5)
 
-    def test_calculate_risk_distribution(self):
-        mu, Sigma_nom = generate_covariance_data(n=5)
-        w = solve_portfolio_optimization(mu, Sigma_nom)
-        risks = calculate_risk_distribution(w, Sigma_nom)
-        self.assertIsInstance(risks, list)
-        self.assertEqual(len(risks), 100)
+    def test_generate_sample_covariance_matrix(self):
+        # Test case 1: Valid input
+        n = 5
+        sigma_nom = generate_nominal_covariance_matrix(n)
+        delta = 0.2
+        sigma_sample = generate_sample_covariance_matrix(sigma_nom, delta)
+        if sigma_sample is not None:
+            self.assertEqual(sigma_sample.shape, (n, n))
 
-    def test_generate_covariance_data_diff_n(self):
-        mu, Sigma_nom = generate_covariance_data(n=10)
-        self.assertEqual(mu.shape, (10, 1))
-        self.assertEqual(Sigma_nom.shape, (10, 10))
+        # Test case 2: Invalid input (sigma_nom not a numpy array)
+        with self.assertRaises(TypeError):
+            generate_sample_covariance_matrix("not a numpy array", 0.2)
 
-    def test_calculate_worst_case_risk_diff_delta(self):
-        mu, Sigma_nom = generate_covariance_data(n=5)
-        w = solve_portfolio_optimization(mu, Sigma_nom)
-        worst_case_std_dev, _ = calculate_worst_case_risk(w, Sigma_nom, delta = 0.3)
-        self.assertGreaterEqual(worst_case_std_dev, 0)
+        # Test case 3: Invalid input (sigma_nom not square)
+        sigma_nom_non_square = np.array([[1, 2], [3, 4], [5, 6]])
+        with self.assertRaises(ValueError):
+            generate_sample_covariance_matrix(sigma_nom_non_square, 0.2)
 
-    def test_calculate_risk_distribution_diff_num_samples(self):
-        mu, Sigma_nom = generate_covariance_data(n=5)
-        w = solve_portfolio_optimization(mu, Sigma_nom)
-        risks = calculate_risk_distribution(w, Sigma_nom, num_samples = 50)
-        self.assertIsInstance(risks, list)
-        self.assertEqual(len(risks), 50)
+        # Test case 4: Invalid input (delta not a float)
+        n = 5
+        sigma_nom = generate_nominal_covariance_matrix(n)
+        with self.assertRaises(TypeError):
+            generate_sample_covariance_matrix(sigma_nom, "not a float")
+
+        # Test case 5: Invalid input (delta < 0)
+        n = 5
+        sigma_nom = generate_nominal_covariance_matrix(n)
+        with self.assertRaises(ValueError):
+            generate_sample_covariance_matrix(sigma_nom, -0.1)
+
+        # Test case 6: Invalid input (delta > 1)
+        n = 5
+        sigma_nom = generate_nominal_covariance_matrix(n)
+        with self.assertRaises(ValueError):
+            generate_sample_covariance_matrix(sigma_nom, 1.1)
+
+    def test_calculate_portfolio_risk(self):
+        # Test case 1: Valid input
+        n = 5
+        sigma = generate_nominal_covariance_matrix(n)
+        w = np.ones(n) / n
+        risk = calculate_portfolio_risk(w, sigma)
+        self.assertIsInstance(risk, float)
+
+        # Test case 2: Invalid input (w not a numpy array)
+        with self.assertRaises(TypeError):
+            calculate_portfolio_risk("not a numpy array", sigma)
+
+        # Test case 3: Invalid input (sigma not a numpy array)
+        w = np.ones(n) / n
+        with self.assertRaises(TypeError):
+            calculate_portfolio_risk(w, "not a numpy array")
+
+        # Test case 4: Invalid input (w and sigma incompatible dimensions)
+        sigma = generate_nominal_covariance_matrix(n)
+        w = np.ones(n + 1) / (n + 1)
+        with self.assertRaises(ValueError):
+            calculate_portfolio_risk(w, sigma)
+
+    def test_solve_portfolio_optimization_problem(self):
+        # Test case 1: Valid input
+        n = 5
+        mu = np.abs(np.random.randn(n, 1)) / 15
+        sigma_nom = generate_nominal_covariance_matrix(n)
+        w = solve_portfolio_optimization_problem(mu, sigma_nom)
+        if w is not None:
+            self.assertEqual(w.shape, (n,))
+
+        # Test case 2: Infeasible problem
+        mu = np.zeros(n)  # Zero returns make the problem infeasible
+        sigma_nom = generate_nominal_covariance_matrix(n)
+        w = solve_portfolio_optimization_problem(mu, sigma_nom)
+        self.assertIsNone(w)
