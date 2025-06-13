@@ -1,5 +1,8 @@
 
-def Problem(objective, constraints):
+import cvxpy as cp
+from typing import List
+
+def Problem(objective: cp.Minimize | cp.Maximize, constraints: List[cp.Constraint]) -> cp.Problem:
     """
     Defines the portfolio optimization problem with an objective and constraints.
 
@@ -8,7 +11,10 @@ def Problem(objective, constraints):
         constraints: A list of constraints on the optimization variables.
 
     Returns:
-        A placeholder object.
+        A CVXPY Problem object.
     """
-    print("Placeholder Problem object created.")
-    return "Placeholder Problem"
+    try:
+        problem = cp.Problem(objective, constraints)
+        return problem
+    except Exception as e:
+        raise ValueError(f"Error creating CVXPY Problem: {e}")
