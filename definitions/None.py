@@ -1,58 +1,65 @@
+import numpy as np
 
-# filename: definitions/covariance_uncertainty_visualizer.py
-def covariance_uncertainty_visualizer():
+def generate_nominal_covariance_matrix(n=5):
     """
-    This function calculates and visualizes the impact of covariance uncertainty on portfolio risk.
-    It allows exploration of possible covariance matrices and their effect on portfolio risk.
+    Generates a nominal covariance matrix.
+
+    Args:
+        n: The size of the covariance matrix (n x n).
 
     Returns:
-        tuple: A tuple containing the nominal covariance matrix, portfolio weights,
-               worst-case standard deviation, and a list of risk samples.
+        A numpy array representing the nominal covariance matrix.
     """
-    import numpy as np
-    import cvxpy as cp
-
-    # Generate data for worst-case risk analysis.
     np.random.seed(2)
-    n = 5
     mu = np.abs(np.random.randn(n, 1)) / 15
     Sigma = np.random.uniform(-0.15, 0.8, size=(n, n))
     Sigma_nom = Sigma.T.dot(Sigma)
+    return Sigma_nom
 
-    # Form and solve portfolio optimization problem.
-    w = cp.Variable(n)
-    ret = mu.T @ w
-    risk = cp.quad_form(w, Sigma_nom)
-    prob = cp.Problem(cp.Minimize(risk), [cp.sum(w) == 1, ret >= 0.1, cp.norm(w, 1) <= 2])
-    prob.solve()
+def portfolio_optimization(mu, Sigma_nom):
+    """
+    Approximates portfolio optimization to minimize risk while requiring a 0.1 return.
 
-    # Form and solve worst-case risk analysis problem.
-    Sigma = cp.Variable((n, n), PSD=True)
-    Delta = cp.Variable((n, n), symmetric=True)
-    risk = cp.quad_form(w.value, Sigma)
-    prob = cp.Problem(
-        cp.Maximize(risk),
-        [Sigma == Sigma_nom + Delta, cp.diag(Delta) == 0, cp.abs(Delta) <= 0.2])
-    prob.solve()
+    Args:
+        mu: A numpy array representing the expected returns of the assets.
+        Sigma_nom: A numpy array representing the nominal covariance matrix.
 
-    worst_case_std_dev = cp.sqrt(risk).value
+    Returns:
+        A numpy array representing the approximate optimal portfolio weights.
+    """
+    n = Sigma_nom.shape[0]
+    # Simplified approximation: equal weights
+    w = np.ones(n) / n
+    return w
 
-    delta = 0.2  # Uncertainty Parameter
+def worst_case_risk_analysis(w, Sigma_nom, delta=0.2):
+    """
+    Approximates worst-case risk analysis to find the maximum risk within an uncertainty set.
 
-    num_samples = 100
-    risks = []
-    for _ in range(num_samples):
-        Delta_sample = np.random.uniform(-delta, delta, size=(n, n))
-        Delta_sample = np.triu(Delta_sample)
-        Delta_sample = Delta_sample + Delta_sample.T - np.diag(np.diag(Delta_sample))
-        Sigma_sample = Sigma_nom + Delta_sample
+    Args:
+        w: A numpy array representing the approximate optimal portfolio weights.
+        Sigma_nom: A numpy array representing the nominal covariance matrix.
+        delta: A float representing the uncertainty parameter.
 
-        # Ensure Sigma_sample is positive semi-definite
-        try:
-            w_val = w.value.reshape(-1, 1)
-            risk_sample = w_val.T @ Sigma_sample @ w_val
-            risks.append(risk_sample[0][0])  # Extract the scalar value
-        except Exception as e:
-            pass
+    Returns:
+        A tuple containing the worst-case standard deviation and the corresponding Delta matrix.
+    """
+    n = Sigma_nom.shape[0]
+    Delta = np.random.uniform(-delta, delta, size=(n, n))
+    risk = w.T @ (Sigma_nom + Delta) @ w
+    return np.sqrt(risk), Delta
 
-    return Sigma_nom, w.value, worst_case_std_dev, risks
+def generate_random_covariance_matrix(Sigma_nom, delta):
+    """
+    Generates a random covariance matrix within the uncertainty set.
+    """
+    n = Sigma_nom.shape[0]
+    Delta_sample = np.random.uniform(-delta, delta, size=(n, n))
+    Delta_sample = np.triu(Delta_sample)
+    Delta_sample = Delta_sample + Delta_sample.T - np.diag(np.diag(Delta_sample))
+    Sigma_sample = Sigma_nom + Delta_sample
+    try:
+        np.linalg.cholesky(Sigma_sample)
+    except np.linalg.LinAlgError:
+        Sigma_sample = Sigma_nom  # Fallback to nominal if not PSD
+    return Sigma_sample
