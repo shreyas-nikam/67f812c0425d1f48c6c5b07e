@@ -5,4 +5,4 @@ environments: Web
 status: Published
 
 
-testing and saving user_guide using save_to_gihub endpoint
+testing after register
